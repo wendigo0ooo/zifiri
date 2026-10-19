@@ -146,12 +146,12 @@ class Game(
             groundItems.add(GroundItem(spot.first, spot.second, Item(Items.GOLD, amount)))
         }
         if (rng.chance(0.45)) {
-            val spot = randomSpot(2) ?: return@repeat
-            groundItems.add(GroundItem(spot.first, spot.second, Item(Items.OIL_FLASK)))
+            val spot = randomSpot(2)
+            if (spot != null) groundItems.add(GroundItem(spot.first, spot.second, Item(Items.OIL_FLASK)))
         }
         if (rng.chance(0.30)) {
-            val spot = randomSpot(2) ?: return@repeat
-            groundItems.add(GroundItem(spot.first, spot.second, Item(Items.BRASS_KEY)))
+            val spot = randomSpot(2)
+            if (spot != null) groundItems.add(GroundItem(spot.first, spot.second, Item(Items.BRASS_KEY)))
         }
         // Locked chests deserve a key.
         if (level.tiles.any { it.f == Feature.LOCKED_CHEST }) {
@@ -174,14 +174,14 @@ class Game(
             val x = rng.nextInt(1, MAP_W - 2)
             val y = rng.nextInt(1, MAP_H - 2)
             val t = level.tile(x, y)
-            if (t.type != TileType.FLOOR.ordinal) continue
-            if (t.feature == Feature.SHOP.ordinal || t.feature == Feature.CHEST.ordinal || t.feature == Feature.LOCKED_CHEST.ordinal) continue
-            if (x == player.x && y == player.y) continue
-            if (enemyAt(x, y) != null) continue
-            if (groundItems.any { it.x == x && it.y == y }) continue
+            if (t.type != TileType.FLOOR.ordinal) return@repeat
+            if (t.feature == Feature.SHOP.ordinal || t.feature == Feature.CHEST.ordinal || t.feature == Feature.LOCKED_CHEST.ordinal) return@repeat
+            if (x == player.x && y == player.y) return@repeat
+            if (enemyAt(x, y) != null) return@repeat
+            if (groundItems.any { it.x == x && it.y == y }) return@repeat
             val d = max(abs(x - level.startX), abs(y - level.startY))
-            if (d < minDistFromStart) continue
-            if (t.isTrap()) continue
+            if (d < minDistFromStart) return@repeat
+            if (t.isTrap()) return@repeat
             return x to y
         }
         return null
