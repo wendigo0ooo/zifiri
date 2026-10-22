@@ -228,6 +228,7 @@ class DungeonGenerator(private val rng: Rng) {
 
         // Decoration can seal a room mouth; guarantee a path after everything is placed.
         ensureConnected(level)
+        ensureOneChest(level, safeRooms)
     }
 
     private fun generateBoss(level: Level) {
@@ -350,7 +351,7 @@ class DungeonGenerator(private val rng: Rng) {
         t.featureData = 0
     }
 
-    private fun ensureConnected(level: Level) {
+    private fun pathExists(level: Level): Boolean {
         val seen = BooleanArray(MAP_W * MAP_H)
         val queue = ArrayDeque<Int>()
         queue.add(level.idx(level.startX, level.startY))
@@ -370,7 +371,11 @@ class DungeonGenerator(private val rng: Rng) {
                 queue.add(level.idx(nx, ny))
             }
         }
-        if (seen[level.idx(level.stairsX, level.stairsY)]) return
+        return seen[level.idx(level.stairsX, level.stairsY)]
+    }
+
+    private fun ensureConnected(level: Level) {
+        if (pathExists(level)) return
         // Decoration sealed the stairs; carve a guaranteed path.
         var x = level.startX
         var y = level.startY
@@ -386,6 +391,21 @@ class DungeonGenerator(private val rng: Rng) {
         }
         level.tile(level.stairsX, level.stairsY).type = TileType.STAIRS.ordinal
         level.tile(level.stairsX, level.stairsY).feature = Feature.NONE.ordinal
+    }
+
+    private fun ensureOneChest(level: Level, rooms: List<Room>) {
+        val hasChest = level.tiles.any {
+            it.feature == Feature.CHEST.ordinal || it.feature == Feature.LOCKED_CHEST.ordinal
+        }
+        if (hasChest) return
+        repeat(40) {
+            val room = rng.pick(rooms)
+            val spot = findFreeSpot(level, room) ?: return@repeat
+            val t = level.tile(spot.first, spot.second)
+            t.feature = Feature.CHEST.ordinal
+            if (pathExists(level)) return
+            t.feature = Feature.NONE.ordinal
+        }
     }
 
     private fun distance(x1: Int, y1: Int, x2: Int, y2: Int): Double {
