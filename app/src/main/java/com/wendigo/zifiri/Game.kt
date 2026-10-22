@@ -41,6 +41,10 @@ class Game(
     var totalGoldFound: Int = 0
     var totalDamage: Int = 0
     var deepest: Int = 1
+    var onProgress: (() -> Unit)? = null
+    var hintText: String = ""
+    var hintUntil: Long = 0L
+    private val hintShown: MutableSet<String> = mutableSetOf()
 
     companion object {
         fun newGame(cls: HeroClass, seed: Long = System.nanoTime()): Game {
@@ -53,6 +57,7 @@ class Game(
             game.recomputeFov()
             game.message("Karanlık seni yuttu. Fenerin hâlâ yanıyor.", Palette.AMBER_HI)
             game.message("Yedinci mühür aşağılarda bir yerde. İn.", Palette.TEXT_DIM)
+            game.hint("move", "Yürümek için bir kareye dokun.")
             game.events.add(VisualEvent.Banner("SARNIÇ", "I. Kat · Su damlıyor, taş nefes alıyor.", Biome.accent(1)))
             game.events.add(VisualEvent.Sound("stairs"))
             return game
@@ -94,6 +99,16 @@ class Game(
         while (messages.size > 80) messages.removeAt(0)
     }
 
+    private fun notifyProgress() {
+        onProgress?.invoke()
+    }
+
+    private fun hint(key: String, text: String) {
+        if (depth != 1 || !hintShown.add(key)) return
+        hintText = text
+        hintUntil = System.currentTimeMillis() + 7000L
+    }
+
     fun sound(id: String) { events.add(VisualEvent.Sound(id)) }
     fun shake(amount: Float) { events.add(VisualEvent.Shake(amount)) }
     fun floatText(x: Int, y: Int, text: String, color: Int) { events.add(VisualEvent.FloatText(x, y, text, color)) }
@@ -123,7 +138,7 @@ class Game(
                 spawnEnemy(rng.pick(Mobs.forDepth(max(1, depth - 1))), spot.first, spot.second)
             }
         } else {
-            val count = min(20, 6 + depth * 2)
+            val count = Balance.enemyCount(depth)
             val pool = Mobs.forDepth(depth)
             repeat(count) {
                 val spot = randomSpot(7) ?: return@repeat
@@ -145,9 +160,13 @@ class Game(
             val amount = rng.nextInt(4, 8 + depth * 4)
             groundItems.add(GroundItem(spot.first, spot.second, Item(Items.GOLD, amount)))
         }
-        if (rng.chance(0.45)) {
+        if (depth == 1 || rng.chance(0.45)) {
             val spot = randomSpot(2)
             if (spot != null) groundItems.add(GroundItem(spot.first, spot.second, Item(Items.OIL_FLASK)))
+        }
+        if (depth == 1) {
+            val spot = randomSpot(2)
+            if (spot != null) groundItems.add(GroundItem(spot.first, spot.second, Item(Items.BREAD)))
         }
         if (rng.chance(0.30)) {
             val spot = randomSpot(2)
@@ -263,6 +282,14 @@ class Game(
         Fov.compute(level, player.x, player.y, lightRadius())
         if (player.relic?.id == Items.OPEN_EYE) {
             revealTraps(player.x, player.y, 2)
+        }
+        if (depth == 1) {
+            if (enemies.any { it.alive && level.tileOrNull(it.x, it.y)?.visible == true }) {
+                hint("fight", "Düşmana dokun: saldır.")
+            }
+            if (level.tileOrNull(level.stairsX, level.stairsY)?.visible == true) {
+                hint("stairs", "Merdiven: üstüne yürü ve dokun.")
+            }
         }
     }
 
@@ -677,11 +704,12 @@ class Game(
         sound("trap")
         when (t.f) {
             Feature.TRAP_SPIKE -> {
-                val dmg = rng.nextInt(3, 6) + depth
+                val dmg = Balance.spikeDamage(rng, depth)
                 damagePlayer(dmg, "diken tuzağı")
                 burst(x, y, 0xFF9E3F3F.toInt(), 16, 1.1f)
                 shake(7f)
                 message("Diken tuzağı! $dmg hasar.", Palette.RED)
+                hint("trap", "Tuzak! Kırmızı çarpıdan kaçın.")
             }
             Feature.TRAP_POISON -> {
                 player.addBuff(Buff(BuffType.POISON, 4, 2 + depth / 2))
@@ -742,6 +770,7 @@ class Game(
         message("Aşağı indin. ${Biome.name(depth)} seni karşıladı.", Biome.accent(depth))
         events.add(VisualEvent.Banner("${Biome.name(depth).uppercase()} · ${depth}. KAT", Biome.subtitle(depth), Biome.accent(depth)))
         sound("stairs")
+        notifyProgress()
         return true
     }
 
@@ -760,6 +789,9 @@ class Game(
         }
         if (player.turns % 3 == 0) {
             player.energyNow = min(player.maxEnergyWithGear(), player.energyNow + 1)
+        }
+        if (player.energyNow >= heroClass.skillCost) {
+            hint("skill", "${heroClass.skillName} hazır · sağ alt mühür.")
         }
         if (player.oil <= 0 && player.turns % 12 == 0) {
             damagePlayer(1, "karanlık")
@@ -784,6 +816,7 @@ class Game(
         recomputeFov()
         if (player.hp <= 0 && !gameOver) die()
         if (player.oil <= 0) player.oil = 0
+        if (!gameOver && !victory) notifyProgress()
     }
 
     private fun tickPlayerBuffs() {
@@ -1576,6 +1609,7 @@ class Game(
         player.inventory.remove(item)
         groundItems.add(GroundItem(player.x, player.y, item))
         message("Bıraktın: ${itemName(item)}", Palette.TEXT_DIM)
+        notifyProgress()
     }
 
     fun buyFromShop(index: Int): Boolean {
@@ -1586,15 +1620,16 @@ class Game(
             sound("empty")
             return false
         }
-        player.gold -= price
         val item = entry.first
         if (!player.addItem(item)) {
             message("Çanta dolu. Sandıkta yer yok.", Palette.TEXT_FAINT)
             return false
         }
+        player.gold -= price
         shopStock.removeAt(index)
         message("Satın aldın: ${itemName(item)}", Palette.AMBER_HI)
         sound("shop")
+        notifyProgress()
         return true
     }
 

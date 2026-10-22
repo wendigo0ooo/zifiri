@@ -195,7 +195,7 @@ class DungeonGenerator(private val rng: Rng) {
 
         // Chests, altars and traps.
         val safeRooms = rooms.drop(1)
-        repeat(min(3, max(1, rooms.size / 4))) {
+        repeat(Balance.chestCount(level.depth, rooms.size)) {
             val room = rng.pick(safeRooms)
             val spot = findFreeSpot(level, room)
             if (spot != null) {
@@ -203,7 +203,7 @@ class DungeonGenerator(private val rng: Rng) {
                 t.feature = if (rng.chance(0.35)) Feature.LOCKED_CHEST.ordinal else Feature.CHEST.ordinal
             }
         }
-        if (rng.chance(0.55)) {
+        if (rng.chance(Balance.altarChance(level.depth))) {
             val room = rng.pick(safeRooms)
             val spot = findFreeSpot(level, room)
             if (spot != null) level.tile(spot.first, spot.second).feature = Feature.ALTAR.ordinal
@@ -213,7 +213,7 @@ class DungeonGenerator(private val rng: Rng) {
             val spot = findFreeSpot(level, room)
             if (spot != null) level.tile(spot.first, spot.second).feature = Feature.SHOP.ordinal
         }
-        val trapCount = 2 + level.depth
+        val trapCount = Balance.trapCount(level.depth)
         repeat(trapCount) {
             val room = rng.pick(safeRooms)
             val tx = rng.nextInt(room.x, room.x + room.w - 1)
@@ -228,18 +228,6 @@ class DungeonGenerator(private val rng: Rng) {
             }
         }
 
-        // A couple of keys make locked chests worth the trouble.
-        val keyCount = 1 + if (level.depth >= 5) 1 else 0
-        repeat(keyCount) {
-            val room = rng.pick(safeRooms)
-            val tx = rng.nextInt(room.x, room.x + room.w - 1)
-            val ty = rng.nextInt(room.y, room.y + room.h - 1)
-            if (isSpecial(level, tx, ty)) return@repeat
-            val t = level.tile(tx, ty)
-            if (t.type == TileType.FLOOR.ordinal && t.feature == Feature.NONE.ordinal) {
-                t.feature = Feature.BONES.ordinal
-            }
-        }
     }
 
     private fun generateBoss(level: Level) {

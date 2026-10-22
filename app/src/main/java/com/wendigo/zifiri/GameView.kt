@@ -914,6 +914,7 @@ class GameView(context: Context, val game: Game, private val host: Host) : View(
         drawMinimap(canvas)
         drawButtons(canvas, now)
         drawMessages(canvas)
+        drawHint(canvas, now)
 
         if (aimMode) {
             drawAimHint(canvas)
@@ -1038,6 +1039,28 @@ class GameView(context: Context, val game: Game, private val host: Host) : View(
             yy += dp(15f)
         }
         txt.textAlign = Paint.Align.LEFT
+    }
+
+    private fun drawHint(canvas: Canvas, now: Long) {
+        if (game.depth != 1 || game.hintText.isEmpty()) return
+        val remaining = game.hintUntil - now
+        if (remaining <= 0L) return
+        val a = (min(1f, remaining / 600f) * 255f).toInt().coerceIn(0, 255)
+        val y = padCy - padR * 1.35f - dp(52f)
+        txtBold.textSize = dp(11f)
+        val maxW = width * 0.88f
+        val tw = min(txtBold.measureText(game.hintText), maxW - dp(28f))
+        val half = tw / 2f + dp(14f)
+        fill.color = Art.alpha(Palette.BLACK, (a * 0.72f).toInt())
+        rect.set(width / 2f - half, y - dp(13f), width / 2f + half, y + dp(7f))
+        canvas.drawRoundRect(rect, dp(9f), dp(9f), fill)
+        line.color = Art.alpha(Palette.TEAL, (a * 0.7f).toInt())
+        line.strokeWidth = max(1f, dp(1.2f))
+        canvas.drawRoundRect(rect, dp(9f), dp(9f), line)
+        txtBold.color = Art.alpha(Palette.TEAL, a)
+        txtBold.textAlign = Paint.Align.CENTER
+        canvas.drawText(game.hintText, width / 2f, y, txtBold)
+        txtBold.textAlign = Paint.Align.LEFT
     }
 
     private fun drawAimHint(canvas: Canvas) {

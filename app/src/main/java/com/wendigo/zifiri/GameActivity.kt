@@ -7,6 +7,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -34,6 +36,12 @@ class GameActivity : Activity(), GameView.Host {
     private var dialog: AlertDialog? = null
     private var scoreSaved = false
     private var ending = false
+    private val saveHandler = Handler(Looper.getMainLooper())
+    private var saveScheduled = false
+    private val saveRunnable = Runnable {
+        saveScheduled = false
+        persist()
+    }
 
     private fun dp(v: Float): Int = (v * resources.displayMetrics.density).toInt()
 
@@ -64,6 +72,7 @@ class GameActivity : Activity(), GameView.Host {
                 runOnUiThread { showShop() }
             }
         }
+        game.onProgress = { scheduleSave() }
 
         view = GameView(this, game, this)
         setContentView(view)
@@ -100,12 +109,31 @@ class GameActivity : Activity(), GameView.Host {
     override fun onPause() {
         super.onPause()
         view.stopWalking()
+        cancelScheduledSave()
         persist()
     }
 
     override fun onStop() {
         super.onStop()
         persist()
+    }
+
+    override fun onDestroy() {
+        cancelScheduledSave()
+        saveHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+    }
+
+    private fun scheduleSave() {
+        if (ending || saveScheduled) return
+        saveScheduled = true
+        saveHandler.postDelayed(saveRunnable, 800L)
+    }
+
+    private fun cancelScheduledSave() {
+        if (!saveScheduled) return
+        saveScheduled = false
+        saveHandler.removeCallbacks(saveRunnable)
     }
 
     override fun onBackPressed() {

@@ -7,6 +7,19 @@ const val MAP_W = 44
 const val MAP_H = 44
 const val MAX_DEPTH = 8
 
+object Balance {
+    fun enemyCount(depth: Int): Int = if (depth <= 1) 7 else min(20, 6 + depth * 2)
+
+    fun trapCount(depth: Int): Int = if (depth <= 1) 2 else min(12, 1 + depth)
+
+    fun spikeDamage(rng: Rng, depth: Int): Int = rng.nextInt(2, 5) + depth
+
+    fun chestCount(depth: Int, roomCount: Int): Int =
+        if (depth <= 1) 2 else min(3, max(1, roomCount / 4))
+
+    fun altarChance(depth: Int): Double = if (depth <= 1) 1.0 else 0.55
+}
+
 fun argb(a: Int, r: Int, g: Int, b: Int): Int =
     ((a and 0xFF) shl 24) or ((r and 0xFF) shl 16) or ((g and 0xFF) shl 8) or (b and 0xFF)
 
