@@ -92,8 +92,6 @@ class DungeonGenerator(private val rng: Rng) {
         level.tile(level.stairsX, level.stairsY).type = TileType.STAIRS.ordinal
         level.tile(level.stairsX, level.stairsY).feature = Feature.NONE.ordinal
 
-        ensureConnected(level)
-
         // Water and danger patches.
         for (r in rooms) {
             if (rng.chance(0.25)) {
@@ -228,6 +226,8 @@ class DungeonGenerator(private val rng: Rng) {
             }
         }
 
+        // Decoration can seal a room mouth; guarantee a path after everything is placed.
+        ensureConnected(level)
     }
 
     private fun generateBoss(level: Level) {
@@ -337,6 +337,19 @@ class DungeonGenerator(private val rng: Rng) {
         }
     }
 
+    private fun blocksPath(t: Tile): Boolean = when (t.type) {
+        TileType.WALL.ordinal, TileType.WALL_TORCH.ordinal, TileType.PILLAR.ordinal,
+        TileType.RUBBLE.ordinal, TileType.LAVA.ordinal, TileType.VOID.ordinal -> true
+        else -> t.feature == Feature.CHEST.ordinal || t.feature == Feature.LOCKED_CHEST.ordinal ||
+            t.feature == Feature.SHOP.ordinal
+    }
+
+    private fun clearForPath(t: Tile) {
+        t.type = TileType.FLOOR.ordinal
+        t.feature = Feature.NONE.ordinal
+        t.featureData = 0
+    }
+
     private fun ensureConnected(level: Level) {
         val seen = BooleanArray(MAP_W * MAP_H)
         val queue = ArrayDeque<Int>()
@@ -352,40 +365,27 @@ class DungeonGenerator(private val rng: Rng) {
                 val ny = y + d.second
                 if (nx !in 1 until MAP_W - 1 || ny !in 1 until MAP_H - 1) continue
                 if (seen[level.idx(nx, ny)]) continue
-                val t = level.tile(nx, ny)
-                if (t.type == TileType.WALL.ordinal || t.type == TileType.PILLAR.ordinal ||
-                    t.type == TileType.RUBBLE.ordinal || t.type == TileType.LAVA.ordinal ||
-                    t.type == TileType.VOID.ordinal) continue
+                if (blocksPath(level.tile(nx, ny))) continue
                 seen[level.idx(nx, ny)] = true
                 queue.add(level.idx(nx, ny))
             }
         }
-        if (!seen[level.idx(level.stairsX, level.stairsY)]) {
-            // Carve a guaranteed path to the stairs.
-            var x = level.startX
-            var y = level.startY
-            while (x != level.stairsX) {
-                x += if (x < level.stairsX) 1 else -1
-                if (level.tile(x, y).type == TileType.WALL.ordinal ||
-                    level.tile(x, y).type == TileType.LAVA.ordinal ||
-                    level.tile(x, y).type == TileType.RUBBLE.ordinal ||
-                    level.tile(x, y).type == TileType.VOID.ordinal) {
-                    level.tile(x, y).type = TileType.FLOOR.ordinal
-                    level.tile(x, y).feature = Feature.NONE.ordinal
-                }
-            }
-            while (y != level.stairsY) {
-                y += if (y < level.stairsY) 1 else -1
-                if (level.tile(x, y).type == TileType.WALL.ordinal ||
-                    level.tile(x, y).type == TileType.LAVA.ordinal ||
-                    level.tile(x, y).type == TileType.RUBBLE.ordinal ||
-                    level.tile(x, y).type == TileType.VOID.ordinal) {
-                    level.tile(x, y).type = TileType.FLOOR.ordinal
-                    level.tile(x, y).feature = Feature.NONE.ordinal
-                }
-            }
-            level.tile(level.stairsX, level.stairsY).type = TileType.STAIRS.ordinal
+        if (seen[level.idx(level.stairsX, level.stairsY)]) return
+        // Decoration sealed the stairs; carve a guaranteed path.
+        var x = level.startX
+        var y = level.startY
+        while (x != level.stairsX) {
+            x += if (x < level.stairsX) 1 else -1
+            val t = level.tile(x, y)
+            if (blocksPath(t)) clearForPath(t)
         }
+        while (y != level.stairsY) {
+            y += if (y < level.stairsY) 1 else -1
+            val t = level.tile(x, y)
+            if (blocksPath(t)) clearForPath(t)
+        }
+        level.tile(level.stairsX, level.stairsY).type = TileType.STAIRS.ordinal
+        level.tile(level.stairsX, level.stairsY).feature = Feature.NONE.ordinal
     }
 
     private fun distance(x1: Int, y1: Int, x2: Int, y2: Int): Double {

@@ -8,6 +8,7 @@ class DungeonTest {
 
     private val blockers = setOf(
         TileType.WALL.ordinal,
+        TileType.WALL_TORCH.ordinal,
         TileType.PILLAR.ordinal,
         TileType.RUBBLE.ordinal,
         TileType.LAVA.ordinal,
@@ -30,7 +31,10 @@ class DungeonTest {
                 if (nx !in 1 until MAP_W - 1 || ny !in 1 until MAP_H - 1) continue
                 val ni = level.idx(nx, ny)
                 if (seen[ni]) continue
-                if (level.tile(nx, ny).type in blockers) continue
+                val t = level.tile(nx, ny)
+                if (t.type in blockers) continue
+                if (t.feature == Feature.CHEST.ordinal || t.feature == Feature.LOCKED_CHEST.ordinal ||
+                    t.feature == Feature.SHOP.ordinal) continue
                 seen[ni] = true
                 queue.addLast(ni)
             }
