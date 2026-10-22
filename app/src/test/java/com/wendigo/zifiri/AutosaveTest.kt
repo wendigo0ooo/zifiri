@@ -11,7 +11,7 @@ class AutosaveTest {
         var saves = 0
         game.onProgress = { saves++ }
 
-        game.endTurn()
+        game.waitTurn()
         assertTrue("turn did not notify", saves >= 1)
 
         val before = saves
