@@ -12,7 +12,7 @@ object Balance {
 
     fun trapCount(depth: Int): Int = if (depth <= 1) 2 else min(12, 1 + depth)
 
-    fun spikeDamage(rng: Rng, depth: Int): Int = rng.nextInt(2, 5) + depth
+    fun spikeDamage(rng: Rng, depth: Int): Int = rng.nextInt(2, 4) + depth
 
     fun chestCount(depth: Int, roomCount: Int): Int =
         if (depth <= 1) 2 else min(3, max(1, roomCount / 4))
